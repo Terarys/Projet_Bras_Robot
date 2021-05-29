@@ -1,0 +1,84 @@
+# import the necessary packages
+import numpy as np
+import cv2
+import subprocess
+
+def change(x):
+    # print(x)
+    pass
+
+# load the image and resize it to a smaller factor so that
+# the shapes can be approximated better
+cap = cv2.VideoCapture(6)
+
+cv2.namedWindow("params")
+
+cv2.createTrackbar('max_val', 'params', 255, 255, change)
+cv2.createTrackbar('th', 'params', 50, 255, change)
+cv2.createTrackbar('start', 'params', 0, 1, change)
+cv2.createTrackbar('move', 'params', 0, 1, change)
+cv2.createTrackbar('descente', 'params', 0, 1, change)
+
+k = 0
+while k != 27:
+    posX = 0
+    posY = 0
+    nbrMesureMax = 15
+    nbrMesure = 0
+
+    while nbrMesure < nbrMesureMax:
+        # image 480*640*3
+        ret1, img = cap.read()
+        imgGry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        #imgGry = cv2.bitwise_not(imgGry)
+
+        max_val = cv2.getTrackbarPos('max_val', 'params')
+        th = cv2.getTrackbarPos('th', 'params')
+        start = cv2.getTrackbarPos('start', 'params')
+        ret, thrash = cv2.threshold(imgGry, th , max_val, cv2.THRESH_BINARY_INV)
+        contours , hierarchy = cv2.findContours(thrash, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        i = 0
+        indexMaxArea = 0
+        maxArea = 0
+        for c in contours:
+            area = cv2.contourArea(c)
+            if(area > maxArea):
+                indexMaxArea = i
+                maxArea = area
+            i = i+1
+
+
+        if(len(contours)):
+            contour = contours[indexMaxArea]
+
+            approx = cv2.approxPolyDP(contour, 0.01* cv2.arcLength(contour, True), True)
+            cv2.drawContours(img, [approx], 0, (0, 0, 0), 5)
+
+            M = cv2.moments(approx)
+            if(M["m00"]):
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                cv2.circle(img, (cX,cY), 7, (0, 0, 255), -1)
+                if(start):
+                    posX = posX + cX
+                    posY = posY + cY
+                    nbrMesure = nbrMesure + 1
+
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+        cv2.imshow("Shape", img)
+        cv2.imshow("thrash", thrash)
+
+    y_offset = 120
+    x_offset = 320
+    move = cv2.getTrackbarPos('move', 'params')
+    descente = cv2.getTrackbarPos('descente', 'params')
+    posX = int(posX/nbrMesureMax) + x_offset
+    posY = int(posY/nbrMesureMax) + y_offset
+
+    if k!=27:
+        subprocess.run(["./calibration-bras", str(posX), str(posY), str(move), str(descente)])
+
+cv2.destroyAllWindows()
